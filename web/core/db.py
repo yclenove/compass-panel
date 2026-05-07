@@ -50,6 +50,9 @@ class Sql:
         # 取数据库对象
         try:
             if self.__DB_CONN is None:
+                db_dir = os.path.dirname(self.__DB_FILE)
+                if db_dir and not os.path.exists(db_dir):
+                    os.makedirs(db_dir, exist_ok=True)
                 self.__DB_CONN = sqlite3.connect(self.__DB_FILE)
                 self.__DB_CONN.text_factory = str
         except Exception as ex:

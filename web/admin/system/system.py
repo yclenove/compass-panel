@@ -28,86 +28,110 @@ blueprint = Blueprint(
 @blueprint.route("/system_total", endpoint="system_total", methods=["GET", "POST"])
 @panel_login_required
 def system_total():
-    import platform
-    data = sys.getMemInfo()
-    cpu = sys.getCpuInfo(interval=1)
-    data["cpuNum"] = cpu[1]
-    data["cpuRealUsed"] = cpu[0]
-    data["time"] = sys.getBootTime()
-    data["system"] = sys.getSystemVersion()
-    data["hostname"] = platform.node()
-    data["kernel"] = platform.release()
-    data["arch"] = platform.machine()
-    data["version"] = "0.0.1"
-    return data
+    try:
+        import platform
+        data = sys.getMemInfo()
+        cpu = sys.getCpuInfo(interval=1)
+        data["cpuNum"] = cpu[1]
+        data["cpuRealUsed"] = cpu[0]
+        data["time"] = sys.getBootTime()
+        data["system"] = sys.getSystemVersion()
+        data["hostname"] = platform.node()
+        data["kernel"] = platform.release()
+        data["arch"] = platform.machine()
+        data["version"] = "0.0.1"
+        return data
+    except Exception as e:
+        return mw.returnData(False, str(e))
 
 
 # 获取环境信息
 @blueprint.route("/get_env_info", endpoint="get_env_info", methods=["GET", "POST"])
 @panel_login_required
 def get_env_info():
-    return sys.getEnvInfo()
+    try:
+        return sys.getEnvInfo()
+    except Exception as e:
+        return mw.returnData(False, str(e))
 
 
 # 获取系统的网络流量信息
 @blueprint.route("/network", endpoint="network")
 @panel_login_required
 def network():
-    stat = {}
-    stat["cpu"] = sys.getCpuInfo()
-    stat["load"] = sys.getLoadAverage()
-    stat["mem"] = sys.getMemInfo()
-    stat["iostat"] = sys.stats().disk()
-    stat["network"] = sys.stats().network()
-    return stat
+    try:
+        stat = {}
+        stat["cpu"] = sys.getCpuInfo()
+        stat["load"] = sys.getLoadAverage()
+        stat["mem"] = sys.getMemInfo()
+        stat["iostat"] = sys.stats().disk()
+        stat["network"] = sys.stats().network()
+        return stat
+    except Exception as e:
+        return mw.returnData(False, str(e))
 
 
 # 获取系统的磁盘信息
 @blueprint.route("/disk_info", endpoint="disk_info", methods=["GET", "POST"])
 @panel_login_required
 def disk_info():
-    data = sys.getDiskInfo()
-    return mw.returnData(True, "ok", data)
+    try:
+        data = sys.getDiskInfo()
+        return mw.returnData(True, "ok", data)
+    except Exception as e:
+        return mw.returnData(False, str(e))
 
 
 # 获取系统的负载统计信息
 @blueprint.route("/get_load_average", endpoint="get_load_average", methods=["GET"])
 @panel_login_required
 def get_load_average():
-    start = request.args.get("start", "")
-    end = request.args.get("end", "")
-    data = sys.getLoadAverageByDB(start, end)
-    return mw.returnData(True, "ok", data)
+    try:
+        start = request.args.get("start", "")
+        end = request.args.get("end", "")
+        data = sys.getLoadAverageByDB(start, end)
+        return mw.returnData(True, "ok", data)
+    except Exception as e:
+        return mw.returnData(False, str(e))
 
 
 # 获取系统的磁盘IO统计信息
 @blueprint.route("/get_disk_io", endpoint="get_disk_io", methods=["GET"])
 @panel_login_required
 def get_disk_io():
-    start = request.args.get("start", "")
-    end = request.args.get("end", "")
-    data = sys.getDiskIoByDB(start, end)
-    return mw.returnData(True, "ok", data)
+    try:
+        start = request.args.get("start", "")
+        end = request.args.get("end", "")
+        data = sys.getDiskIoByDB(start, end)
+        return mw.returnData(True, "ok", data)
+    except Exception as e:
+        return mw.returnData(False, str(e))
 
 
 # 获取系统的CPU/IO统计信息
 @blueprint.route("/get_cpu_io", endpoint="get_cpu_io", methods=["GET"])
 @panel_login_required
 def get_cpu_io():
-    start = request.args.get("start", "")
-    end = request.args.get("end", "")
-    data = sys.getCpuIoByDB(start, end)
-    return mw.returnData(True, "ok", data)
+    try:
+        start = request.args.get("start", "")
+        end = request.args.get("end", "")
+        data = sys.getCpuIoByDB(start, end)
+        return mw.returnData(True, "ok", data)
+    except Exception as e:
+        return mw.returnData(False, str(e))
 
 
 # 获取系统网络IO统计信息
 @blueprint.route("/get_network_io", endpoint="get_network_io", methods=["GET"])
 @panel_login_required
 def get_network_io():
-    start = request.args.get("start", "")
-    end = request.args.get("end", "")
-    data = sys.getNetworkIoByDB(start, end)
-    return mw.returnData(True, "ok", data)
+    try:
+        start = request.args.get("start", "")
+        end = request.args.get("end", "")
+        data = sys.getNetworkIoByDB(start, end)
+        return mw.returnData(True, "ok", data)
+    except Exception as e:
+        return mw.returnData(False, str(e))
 
 
 # 重启面板

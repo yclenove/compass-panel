@@ -1,8 +1,13 @@
-# mdserver-web 项目配置
+# Compass Panel 项目配置
 
 ## 项目概述
 
-mdserver-web 是一个 Linux 服务器管理面板，提供 Web 界面管理服务器、网站、文件、数据库等功能。
+Compass 指南面板是一个 Linux 服务器管理面板，基于 mdserver-web 深度改造。目标是打造超越宝塔面板的完美产品。
+
+**迭代计划**: 参考 `docs/BAOTA_COMPARISON.md` (25阶段 S0-S25)
+**品牌规范**: 参考 `docs/BRAND.md`
+**体验设计**: 参考 `docs/EXPERIENCE_DESIGN.md`
+**会话记忆**: 参考 `.claude/memory/session-context.md`
 
 ## 技术栈
 

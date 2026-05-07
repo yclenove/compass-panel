@@ -1,0 +1,33 @@
+{
+  "version": "1.0.0",
+  "max_iterations": 100,
+  "current_iteration": 5,
+  "priorities": {
+    "bug": 1,
+    "security": 1,
+    "tech_debt": 2,
+    "performance": 3,
+    "feature": 4,
+    "documentation": 5
+  },
+  "issue_sources": [
+    {
+      "name": "flake8",
+      "command": "flake8 web/ --count --statistics",
+      "type": "tech_debt",
+      "priority": 2
+    },
+    {
+      "name": "todo_comments",
+      "command": "grep -rn 'TODO\\|FIXME\\|HACK\\|XXX' web/ --include='*.py' --include='*.js' --include='*.vue'",
+      "type": "tech_debt",
+      "priority": 3
+    }
+  ],
+  "test_commands": [
+    "python -m pytest tests/ -v"
+  ],
+  "deploy_command": "bash scripts/deploy.sh",
+  "smoke_test_command": "python scripts/smoke-test.py",
+  "report_dir": "docs/iteration/reports"
+}

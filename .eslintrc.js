@@ -1,0 +1,27 @@
+module.exports = {
+  env: {
+    browser: true,
+    jquery: true,
+    es2021: true,
+  },
+  extends: 'eslint:recommended',
+  parserOptions: {
+    ecmaVersion: 'latest',
+    sourceType: 'script',
+  },
+  globals: {
+    $: 'readonly',
+    jQuery: 'readonly',
+    layer: 'readonly',
+    echarts: 'readonly',
+    io: 'readonly',
+  },
+  rules: {
+    indent: ['error', 2],
+    'linebreak-style': ['error', 'unix'],
+    quotes: ['error', 'single'],
+    semi: ['error', 'always'],
+    'no-unused-vars': 'warn',
+    'no-console': 'off',
+  },
+};

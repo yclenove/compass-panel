@@ -144,3 +144,61 @@ export function getLastBody(path, line) {
   data.append('line', line || '100');
   return request({ url: '/files/get_last_body', method: 'post', data });
 }
+
+// 回收站
+export function getRecycleBin() {
+  return request({ url: '/files/get_recycle_bin', method: 'post' });
+}
+export function restoreRecycleBin(path) {
+  const data = new URLSearchParams();
+  data.append('path', path);
+  return request({ url: '/files/re_recycle_bin', method: 'post', data });
+}
+export function deleteRecycleBin(path) {
+  const data = new URLSearchParams();
+  data.append('path', path);
+  return request({ url: '/files/del_recycle_bin', method: 'post', data });
+}
+export function toggleRecycleBin() {
+  return request({ url: '/files/recycle_bin', method: 'post' });
+}
+export function closeRecycleBin() {
+  return request({ url: '/files/close_recycle_bin', method: 'post' });
+}
+
+// 文件搜索
+export function searchFiles(path, keyword, searchType, regex, fileType) {
+  const data = new URLSearchParams();
+  data.append('path', path);
+  data.append('keyword', keyword);
+  if (searchType) data.append('type', searchType);
+  if (regex) data.append('regex', '1');
+  if (fileType) data.append('file_type', fileType);
+  return request({ url: '/files/enhance/search', method: 'post', data });
+}
+
+// 压缩/解压
+export function compressFiles(path, files, format, password, level) {
+  const data = new URLSearchParams();
+  data.append('path', path);
+  data.append('files', files);
+  data.append('format', format);
+  if (password) data.append('password', password);
+  if (level) data.append('level', level);
+  return request({ url: '/files/enhance/compress', method: 'post', data });
+}
+export function decompressFile(file, target, password) {
+  const data = new URLSearchParams();
+  data.append('file', file);
+  if (target) data.append('target', target);
+  if (password) data.append('password', password);
+  return request({ url: '/files/enhance/decompress', method: 'post', data });
+}
+
+// 文件校验
+export function getChecksum(file, algorithm) {
+  const data = new URLSearchParams();
+  data.append('file', file);
+  data.append('algorithm', algorithm || 'md5');
+  return request({ url: '/files/enhance/checksum', method: 'post', data });
+}

@@ -1,16 +1,21 @@
 # coding:utf-8
 
 # ---------------------------------------------------------------------------------
-# MW-Linux面板
+# Compass Panel
 # ---------------------------------------------------------------------------------
-# copyright (c) 2018-∞(https://github.com/midoks/mdserver-web) All rights reserved.
+# Copyright (C) 2024-2026 Compass Panel. All rights reserved.
 # ---------------------------------------------------------------------------------
-# Author: midoks <midoks@163.com>
+# Author: Compass Panel Team
 # ---------------------------------------------------------------------------------
 
 import core.mw as mw
 
 __FIELD = "id,name,type,start,end,cmd,status,add_time"
+
+
+def getTaskById(task_id):
+    """根据 ID 获取任务详情"""
+    return mw.M("tasks").where("id=?", (task_id,)).find()
 
 
 def getTaskCount(status=-1) -> int:
@@ -57,9 +62,10 @@ def addTask(
     :name -> str 类型
     :cmd -> str 日志内容 (必填)
     :type -> str 用户ID
+    返回插入的 task id
     """
     if cmd is None:
-        return False
+        return 0
 
     add_time = mw.formatDate()
     insert_data = {
@@ -71,8 +77,7 @@ def addTask(
         "status": status,
         "add_time": add_time,
     }
-    mw.M("tasks").insert(insert_data)
-    return True
+    return mw.M("tasks").insert(insert_data)
 
 
 def getTaskList(

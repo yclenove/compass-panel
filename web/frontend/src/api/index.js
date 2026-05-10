@@ -37,6 +37,11 @@ export function getDiskInfo() {
   return request({ url: '/system/disk_info', method: 'post' });
 }
 
+// 获取系统服务状态
+export function getSystemServices() {
+  return request({ url: '/system/services', method: 'post' });
+}
+
 // 获取面板信息
 export function getPanelInfo() {
   return request({ url: '/panel/get_panel_info', method: 'post' });
@@ -257,6 +262,11 @@ export function setSitePhpVersion(siteName, version) {
   data.append('siteName', siteName);
   data.append('version', version);
   return request({ url: '/site/set_php_version', method: 'post', data });
+}
+
+// 获取所有PHP版本列表
+export function getPhpVersions() {
+  return request({ url: '/site/get_php_version', method: 'post' });
 }
 
 // 获取站点默认文档

@@ -380,10 +380,11 @@
 import { ref, reactive, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import request from '@/utils/request';
 import { VideoPlay, VideoPause, SwitchButton, Refresh } from '@element-plus/icons-vue';
 import { useAppStore } from '@/stores/app';
 import * as echarts from 'echarts';
-import { getIndexPluginList, restartPanelApi, clearLogs as apiClearLogs, runPlugin } from '@/api/index';
+import { getSystemServices, restartPanelApi, clearLogs as apiClearLogs, runPlugin } from '@/api/index';
 
 const router = useRouter();
 const appStore = useAppStore();
@@ -485,18 +486,36 @@ const serviceIcons = {
 
 async function refreshServices() {
   try {
-    const res = await getIndexPluginList();
-    if (res && Array.isArray(res.data)) {
-      serviceList.value = res.data.map(item => ({
-        name: item.title || item.name,
-        running: !!item.setup,
-        icon: serviceIcons[item.name?.toLowerCase()] || 'Box',
-        version: item.version || '',
+    const res = await getSystemServices();
+    const data = res?.data?.services || res?.data || [];
+    if (Array.isArray(data)) {
+      serviceList.value = data.map(svc => ({
+        name: svc.label || svc.name,
+        key: svc.name,
+        running: svc.running,
+        icon: serviceIcons[svc.name] || 'Box',
+        version: svc.version || '',
         loading: false
       }));
     }
   } catch {
-    serviceList.value = [];
+    // fallback to plugin list
+    try {
+      const { getIndexPluginList } = await import('@/api/index');
+      const res = await getIndexPluginList();
+      if (res && Array.isArray(res.data)) {
+        serviceList.value = res.data.map(item => ({
+          name: item.title || item.name,
+          key: item.name,
+          running: !!item.setup,
+          icon: serviceIcons[item.name?.toLowerCase()] || 'Box',
+          version: item.version || '',
+          loading: false
+        }));
+      }
+    } catch {
+      serviceList.value = [];
+    }
   }
 }
 
@@ -505,7 +524,12 @@ async function controlService(svc, action) {
   try {
     await ElMessageBox.confirm(`确定要${actionNames[action]} ${svc.name} 吗？`, '操作确认', { type: 'warning' });
     svc.loading = true;
-    await runPlugin(svc.name, action, svc.version);
+    // Use systemctl for real services, fallback to plugin API
+    if (svc.key && svc.key !== 'php-fpm') {
+      await request.post('/system/service_control', { service: svc.key, action });
+    } else {
+      await runPlugin(svc.name, action, svc.version);
+    }
     ElMessage.success(`${svc.name} ${actionNames[action]}命令已执行`);
     setTimeout(() => refreshServices(), 2000);
   } catch (e) {
@@ -564,11 +588,12 @@ function getProgressColor(value) {
 }
 
 function formatBytes(bytes) {
-  if (!bytes || bytes === 0) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const n = Number(bytes);
+  if (!n || n === 0 || !isFinite(n) || n < 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
   const k = 1024;
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + units[i];
+  const i = Math.min(Math.floor(Math.log(n) / Math.log(k)), units.length - 1);
+  return parseFloat((n / Math.pow(k, i)).toFixed(2)) + ' ' + units[i];
 }
 
 function formatUptime(uptime) {

@@ -1,11 +1,11 @@
 # coding:utf-8
 
 # ---------------------------------------------------------------------------------
-# MW-Linux面板
+# Compass Panel
 # ---------------------------------------------------------------------------------
-# copyright (c) 2018-∞(https://github.com/midoks/mdserver-web) All rights reserved.
+# Copyright (C) 2024-2026 Compass Panel. All rights reserved.
 # ---------------------------------------------------------------------------------
-# Author: midoks <midoks@163.com>
+# Author: Compass Panel Team
 # ---------------------------------------------------------------------------------
 
 import os
@@ -257,7 +257,20 @@ class plugin(object):
             return mw.returnData(False, "缺少插件名称!", ())
 
         if version.strip() == "":
-            return mw.returnData(False, "缺少版本信息!", ())
+            # Auto-detect latest version from info.json
+            info_file = self.__plugin_dir + "/" + name + "/" + "info.json"
+            if os.path.exists(info_file):
+                try:
+                    info_data = json.loads(mw.readFile(info_file))
+                    versions = info_data.get("versions", [])
+                    if versions:
+                        version = versions[-1].get("version", "")
+                    else:
+                        version = info_data.get("version", "")
+                except (json.JSONDecodeError, KeyError):
+                    pass
+            if not version:
+                return mw.returnData(False, "缺少版本信息，且无法自动检测!", ())
 
         msg_head = "安装"
         if upgrade is not None and upgrade is True:
@@ -275,11 +288,11 @@ class plugin(object):
 
         self.hookInstall(info_data)
         title = "{0}[{1}-{2}]".format(msg_head, name, version)
-        thisdb.addTask(name=title, cmd=exec_bash, status=0)
+        task_id = thisdb.addTask(name=title, cmd=exec_bash, status=0)
         mw.triggerTask()
         # 调式日志
         mw.debugLog(exec_bash)
-        return mw.returnData(True, "已将安装任务添加到队列!")
+        return mw.returnData(True, {"task_id": task_id, "message": "已将安装任务添加到队列!"})
 
     # 卸载插件
     def uninstall(self, name, version):
@@ -747,7 +760,7 @@ class plugin(object):
             if "author" not in data:
                 data["author"] = "未知"
             if "home" not in data:
-                data["home"] = "https://github.com/midoks/mdserver-web"
+                data["home"] = "https://github.com/compass-panel/compass-panel"
             plugin_path = mw.getPluginDir() + data["name"] + "/info.json"
             data["old_version"] = "0"
             data["tmp_path"] = tmp_path

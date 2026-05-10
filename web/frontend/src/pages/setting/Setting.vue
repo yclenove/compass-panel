@@ -65,6 +65,7 @@
             <el-form-item label="服务器IP">
               <el-input v-model="basicForm.server_ip" placeholder="服务器IP" style="max-width: 300px" />
               <el-button type="primary" style="margin-left: 8px" @click="saveIp">保存</el-button>
+              <el-button style="margin-left: 4px" @click="autoDetectIp" :loading="detectingIp">自动检测</el-button>
             </el-form-item>
             <el-form-item label="安全入口">
               <el-input v-model="basicForm.admin_path" placeholder="/安全入口" style="max-width: 300px">
@@ -205,14 +206,67 @@
             </el-card>
           </div>
         </el-tab-pane>
+
+        <!-- 通知设置 -->
+        <el-tab-pane label="通知设置" name="notify">
+          <template #label>
+            <span><el-icon><Bell /></el-icon> 通知设置</span>
+          </template>
+          <el-row :gutter="16">
+            <!-- 通知渠道 -->
+            <el-col :xs="24" :lg="14">
+              <el-card shadow="hover">
+                <template #header><span>推送渠道</span></template>
+                <el-collapse v-model="activeChannel" accordion>
+                  <el-collapse-item v-for="ch in notifyChannels" :key="ch.key" :name="ch.key">
+                    <template #title>
+                      <div class="channel-title">
+                        <el-tag :type="ch.configured ? 'success' : 'info'" size="small">{{ ch.configured ? '已配置' : '未配置' }}</el-tag>
+                        <span>{{ ch.name }}</span>
+                      </div>
+                    </template>
+                    <el-form :model="notifyConfig[ch.key]" label-width="100px" size="small">
+                      <el-form-item v-for="key in ch.keys" :key="key" :label="key">
+                        <el-input v-model="notifyConfig[ch.key][key]" :type="key.includes('pass') || key.includes('token') || key.includes('secret') ? 'password' : 'text'" show-password :placeholder="'输入' + key" />
+                      </el-form-item>
+                      <el-form-item>
+                        <el-button type="primary" @click="saveNotifyChannel(ch.key)" :loading="notifySaving">保存配置</el-button>
+                        <el-button @click="testNotifyChannel(ch.key)" :loading="notifyTesting === ch.key">测试发送</el-button>
+                      </el-form-item>
+                    </el-form>
+                  </el-collapse-item>
+                </el-collapse>
+              </el-card>
+            </el-col>
+            <!-- 触发事件 -->
+            <el-col :xs="24" :lg="10">
+              <el-card shadow="hover">
+                <template #header><span>触发事件</span></template>
+                <div class="trigger-list">
+                  <div v-for="t in notifyTriggers" :key="t.event" class="trigger-item">
+                    <div class="trigger-info">
+                      <span class="trigger-name">{{ triggerLabels[t.event] || t.event }}</span>
+                      <span class="trigger-desc">{{ triggerDescs[t.event] || '' }}</span>
+                    </div>
+                    <el-switch v-model="t.enabled" @change="setNotifyTrigger(t.event, t.enabled)" />
+                  </div>
+                </div>
+                <div class="notify-hint">
+                  配置推送渠道后，开启对应事件触发通知推送
+                </div>
+              </el-card>
+            </el-col>
+          </el-row>
+        </el-tab-pane>
       </el-tabs>
     </el-card>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import request from '@/utils/request';
 import {
   getPanelSettings,
   setWebname,
@@ -233,6 +287,7 @@ import {
 
 const activeTab = ref('basic');
 const userFormRef = ref(null);
+const detectingIp = ref(false);
 
 const panelInfo = ref({
   version: '',
@@ -271,13 +326,13 @@ const userForm = reactive({
 
 const userRules = {};
 
-// 面板访问地址
+// 面板访问地址 - 使用实际运行端口和地址
 const panelAccessUrl = computed(() => {
-  const host = window.location.hostname;
-  const port = panelInfo.value.port || window.location.port || '7200';
+  const host = panelInfo.value.server_ip || window.location.hostname;
+  const actualPort = window.location.port || panelInfo.value.port || '7201';
   const path = panelInfo.value.admin_path || '';
   const protocol = window.location.protocol;
-  return `${protocol}//${host}:${port}${path}`;
+  return `${protocol}//${host}:${actualPort}/${path}`;
 });
 
 const copyPanelUrl = () => {
@@ -314,19 +369,112 @@ const updatePasswordStrength = () => {
   passwordStrength.value = Math.min(score, 4);
 };
 
+// 通知设置
+const activeChannel = ref('');
+const notifySaving = ref(false);
+const notifyTesting = ref(null);
+const notifyChannels = ref([]);
+const notifyConfig = ref({});
+const notifyTriggers = ref([]);
+const triggerLabels = {
+  login: '面板登录', security_alert: '安全告警', backup_complete: '备份完成',
+  ssl_expiring: 'SSL证书到期', disk_full: '磁盘空间不足', high_load: '系统高负载',
+  service_down: '服务宕机', task_failed: '计划任务失败',
+};
+const triggerDescs = {
+  login: '面板管理员登录时通知', security_alert: '检测到安全威胁时通知',
+  backup_complete: '网站/数据库备份完成时通知', ssl_expiring: 'SSL证书即将到期时通知',
+  disk_full: '磁盘使用率超过阈值通知', high_load: '系统负载过高时通知',
+  service_down: '关键服务停止时通知', task_failed: '计划任务执行失败时通知',
+};
+
+async function loadNotifyChannels() {
+  try {
+    const r = await request.post('/notify/channels');
+    const channels = r.data?.data?.channels || r.data?.channels || [];
+    notifyChannels.value = channels.map(c => ({
+      ...c,
+      keys: [], // populated from config
+    }));
+    // Load full channel info with keys
+    const r2 = await request.post('/notify/triggers');
+    notifyTriggers.value = (r2.data?.data?.triggers || r2.data?.triggers || []).map(t => ({
+      event: t.event || t.enabled,
+      enabled: t.enabled === true || t.enabled === 'true',
+    }));
+    notifyConfig.value = {};
+  } catch (e) { console.error('加载通知通道失败:', e); }
+}
+
+async function loadChannelKeys(channel) {
+  try {
+    const r = await request.post('/notify/config', { channel });
+    const data = r.data?.data || r.data || {};
+    notifyConfig.value[channel] = Object.fromEntries(
+      (data.keys || []).map(k => [k, (data.config || {})[k] || ''])
+    );
+    // Update channel keys list
+    const ch = notifyChannels.value.find(c => c.key === channel);
+    if (ch) ch.keys = data.keys || [];
+  } catch (e) { console.error('加载通道密钥失败:', e); }
+}
+// Watch for channel expand to load config
+watch(activeChannel, (ch) => {
+  if (ch && !notifyConfig.value[ch]) loadChannelKeys(ch);
+});
+
+async function saveNotifyChannel(channel) {
+  notifySaving.value = true;
+  try {
+    const cfg = notifyConfig.value[channel] || {};
+    await request.post('/notify/save_config', { channel, ...cfg });
+    ElMessage.success('配置已保存');
+    // Refresh channel list
+    const r = await request.post('/notify/channels');
+    const channels = r.data?.data?.channels || r.data?.channels || [];
+    notifyChannels.value = channels.map(c => ({ ...c, keys: notifyChannels.value.find(nc => nc.key === c.key)?.keys || [] }));
+  } catch (e) {
+    ElMessage.error('保存失败');
+  } finally { notifySaving.value = false; }
+}
+
+async function testNotifyChannel(channel) {
+  notifyTesting.value = channel;
+  try {
+    const r = await request.post('/notify/test', { channel });
+    if (r.data?.status === true || r.data?.status === 1) {
+      ElMessage.success('测试消息已发送!');
+    } else {
+      ElMessage.error(r.data?.msg || '发送失败');
+    }
+  } catch (e) {
+    ElMessage.error('测试失败');
+  } finally { notifyTesting.value = null; }
+}
+
+async function setNotifyTrigger(event, enabled) {
+  try {
+    await request.post('/notify/set_trigger', { event, enabled: enabled ? '1' : '0' });
+    ElMessage.success(`事件触发器已${enabled ? '启用' : '禁用'}`);
+  } catch (e) {
+    ElMessage.error('设置失败');
+  }
+}
+
 const fetchPanelInfo = async () => {
   try {
     const res = await getPanelSettings();
     if (res) {
+      const data = res.data || res;
       panelInfo.value = {
-        version: res.version || '-',
-        port: res.port || '-',
-        admin_path: res.admin_path || '-',
-        time: res.time || '-',
-        title: res.title || '',
-        site_path: res.site_path || '',
-        backup_path: res.backup_path || '',
-        server_ip: res.server_ip || ''
+        version: data.version || '-',
+        port: window.location.port || data.port || '-',
+        admin_path: data.admin_path || '-',
+        time: data.time || '-',
+        title: data.title || '',
+        site_path: data.site_path || '',
+        backup_path: data.backup_path || '',
+        server_ip: data.server_ip && data.server_ip !== '0.0.0.0' && data.server_ip !== '127.0.0.1' ? data.server_ip : (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' ? window.location.hostname : (data.server_ip || ''))
       };
       basicForm.webname = panelInfo.value.title;
       basicForm.port = panelInfo.value.port;
@@ -376,6 +524,34 @@ const saveIp = async () => {
     ElMessage.success('IP保存成功');
   } catch (error) {
     console.error('保存IP失败:', error);
+  }
+};
+
+const autoDetectIp = async () => {
+  detectingIp.value = true;
+  try {
+    const res = await request.post('/system/get_server_ip');
+    const ip = res.data?.data?.ip || res.data?.ip || '';
+    if (ip && ip !== '127.0.0.1' && ip !== '0.0.0.0') {
+      basicForm.server_ip = ip;
+      ElMessage.success('检测到IP: ' + ip);
+    } else {
+      // Fallback to public IP services
+      try {
+        const r = await fetch('https://api.ipify.org?format=json');
+        const d = await r.json();
+        if (d.ip) {
+          basicForm.server_ip = d.ip;
+          ElMessage.success('检测到公网IP: ' + d.ip);
+        }
+      } catch {
+        ElMessage.warning('无法自动检测IP，请手动输入');
+      }
+    }
+  } catch {
+    ElMessage.warning('无法检测IP，请手动输入');
+  } finally {
+    detectingIp.value = false;
   }
 };
 
@@ -523,6 +699,7 @@ const checkUpdate = () => {
 };
 
 onMounted(() => {
+  loadNotifyChannels();
   fetchPanelInfo();
 });
 </script>

@@ -32,11 +32,12 @@ export const useAppStore = defineStore('app', () => {
     time: '',
   });
 
-  const sidebarCollapsed = ref(false);
+  const sidebarCollapsed = ref(localStorage.getItem('mw_sidebar_collapsed') === 'true');
   const theme = ref(localStorage.getItem('mw_theme') || 'light');
 
   function toggleSidebar() {
     sidebarCollapsed.value = !sidebarCollapsed.value;
+    localStorage.setItem('mw_sidebar_collapsed', sidebarCollapsed.value);
   }
 
   function setTheme(newTheme) {
@@ -94,9 +95,9 @@ export const useAppStore = defineStore('app', () => {
           model: cpuModel,
         },
         memory: {
-          total: (mem.memTotal || basic.memTotal || 0) * 1024 * 1024, // MB -> bytes
-          used: (mem.memRealUsed || basic.memRealUsed || 0) * 1024 * 1024,
-          free: (mem.memFree || basic.memFree || 0) * 1024 * 1024,
+          total: mem.memTotal || basic.memTotal || 0, // already in bytes from psutil
+          used: mem.memRealUsed || basic.memRealUsed || 0,
+          free: mem.memFree || basic.memFree || 0,
           usage: (mem.memTotal || basic.memTotal)
             ? Math.round(((mem.memRealUsed || basic.memRealUsed || 0) / (mem.memTotal || basic.memTotal)) * 100)
             : 0,
@@ -110,8 +111,8 @@ export const useAppStore = defineStore('app', () => {
         network: {
           up: Math.round(netAll.up || 0),
           down: Math.round(netAll.down || 0),
-          tcp: 0,
-          established: 0,
+          tcp: basic.tcp_count || 0,
+          established: basic.active_connections || 0,
         },
         load: {
           one: load.one ?? 0,
@@ -119,13 +120,13 @@ export const useAppStore = defineStore('app', () => {
           fifteen: load.fifteen ?? 0,
         },
         process: {
-          total: 0,
-          running: 0,
-          sleeping: 0,
+          total: basic.process_total || 0,
+          running: basic.process_running || 0,
+          sleeping: basic.process_sleeping || 0,
         },
         swap: {
-          total: (mem.memSwapTotal || 0) * 1024 * 1024, // MB -> bytes
-          used: (mem.memSwapUsed || 0) * 1024 * 1024,
+          total: mem.memSwapTotal || 0, // already in bytes from psutil
+          used: mem.memSwapUsed || 0,
           usage: mem.memSwapTotal
             ? Math.round(((mem.memSwapUsed || 0) / mem.memSwapTotal) * 100)
             : 0,

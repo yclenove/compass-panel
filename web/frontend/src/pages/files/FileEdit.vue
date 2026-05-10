@@ -61,7 +61,7 @@
         v-model="fileContent"
         :language="currentLanguage"
         :theme="editorTheme"
-        :height="'calc(100vh - 200px)'"
+        :height="'100%'"
         :loading="loading"
         @save="handleSave"
       />
@@ -133,8 +133,9 @@ async function loadFile() {
 
   try {
     const res = await getFileContent(path);
-    // API 返回格式: { status: true, msg: "OK", data: { status, encoding, data: "file content" } }
-    const content = res.data?.data || res.data || '';
+    // API: backend returns {status, encoding, data: "content"} in msg
+    // After interceptor: res.data = {status, encoding, data: "content"}
+    const content = res.data?.data ?? '';
     fileContent.value = content;
     originalContent.value = content;
 
@@ -170,11 +171,12 @@ async function handleSave(content) {
 }
 
 function formatBytes(bytes) {
-  if (!bytes || bytes === 0) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB'];
+  const n = Number(bytes);
+  if (!n || n === 0 || !isFinite(n) || n < 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   const k = 1024;
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + units[i];
+  const i = Math.min(Math.floor(Math.log(n) / Math.log(k)), units.length - 1);
+  return parseFloat((n / Math.pow(k, i)).toFixed(2)) + ' ' + units[i];
 }
 
 // 离开页面前提醒
@@ -197,7 +199,13 @@ onBeforeUnmount(() => {
 
 <style lang="scss" scoped>
 .file-edit-page {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 50px);
+  margin: -10px;
+
   .edit-toolbar {
+    flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -274,9 +282,11 @@ onBeforeUnmount(() => {
   }
 
   .editor-wrapper {
+    flex: 1;
     padding: 0;
     overflow: hidden;
     margin-top: 0;
+    min-height: 0;
   }
 
   @keyframes pulse {

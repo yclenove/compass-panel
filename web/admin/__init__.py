@@ -1,11 +1,11 @@
 # coding:utf-8
 
 # ---------------------------------------------------------------------------------
-# MW-Linux面板
+# Compass Panel
 # ---------------------------------------------------------------------------------
-# copyright (c) 2018-∞(https://github.com/midoks/mdserver-web) All rights reserved.
+# Copyright (C) 2024-2026 Compass Panel. All rights reserved.
 # ---------------------------------------------------------------------------------
-# Author: midoks <midoks@163.com>
+# Author: Compass Panel Team
 # ---------------------------------------------------------------------------------
 
 import sys
@@ -74,7 +74,7 @@ app.config["SESSION_USE_SIGNER"] = True
 app.config["SESSION_KEY_PREFIX"] = "MW_:"
 app.config["SESSION_COOKIE_NAME"] = "MW_VER_1"
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=31)
-app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 604800
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 300 if config.DEV_MODE else 3600
 
 # db的配置
 # app.config['SQLALCHEMY_DATABASE_URI'] = (
@@ -92,6 +92,10 @@ try:
 except Exception:
     pass
 
+# 安全加固 (安全头/会话保护/限流)
+from .setup.security_hardening import init_security  # noqa: E402
+init_security(app)
+
 # 加载模块
 from .submodules import get_submodules  # noqa: E402
 
@@ -99,6 +103,10 @@ for module in get_submodules():
     app.logger.info("Registering blueprint module: %s" % module)
     if app.blueprints.get(module.name) is None:
         app.register_blueprint(module)
+
+# Register public API blueprint (API token auth endpoints)
+from .api_auth import public_api  # noqa: E402
+app.register_blueprint(public_api)
 
 
 # Vue SPA 静态文件目录和辅助函数（必须在 before_request 之前定义）
@@ -177,12 +185,32 @@ def requestCheck():
     try:
         db_path = thisdb.getOption("admin_path")
         if db_path:
+            # Redirect root / to Vue SPA
+            if request.path == '/' or request.path == '':
+                return redirect('/' + db_path + '/vue/')
+            # Redirect /admin_path without /vue to Vue SPA
+            if request.path == '/' + db_path or request.path == '/' + db_path + '/':
+                return redirect('/' + db_path + '/vue/')
+            # Handle requests with admin path but without /vue prefix
+            # e.g., /GY2p0TYv/some/old/path → redirect to /GY2p0TYv/vue/
+            admin_prefix = '/' + db_path + '/'
+            if request.path.startswith(admin_prefix) and not request.path.startswith(admin_prefix + 'vue'):
+                rest = request.path[len(admin_prefix):]
+                if rest == '':
+                    return redirect('/' + db_path + '/vue/')
+                if rest in ('login', 'index'):
+                    return redirect('/' + db_path + '/vue/login')
+                return redirect('/' + db_path + '/vue/')
+
             vue_prefix = '/' + db_path + '/vue'
             if request.path == vue_prefix or request.path == vue_prefix + '/' or request.path.startswith(vue_prefix + '/'):
+                vue_sub = request.path[len(vue_prefix):].lstrip('/')
+                # login page is always served (SPA handles auth state client-side)
+                if vue_sub == 'login' or vue_sub.startswith('login'):
+                    return _serve_vue_spa(vue_sub)
                 from admin.common import isLogined
                 if not isLogined():
-                    return redirect('/' + db_path)
-                vue_sub = request.path[len(vue_prefix):].lstrip('/')
+                    return redirect('/' + db_path + '/vue/login')
                 return _serve_vue_spa(vue_sub)
     except Exception:
         pass
@@ -223,9 +251,22 @@ def requestAfter(response):
     response.headers["mw-version"] = config.APP_VERSION
     response.headers["X-Response-Time"] = round(time.time() - request.start_time, 4)
 
-    # 为 Vue 静态资源添加长期缓存头
-    if request.path.startswith('/vue/assets/') or request.path.startswith('/assets/'):
-        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    # 为 Vue 静态资源添加缓存头
+    # 带内容哈希的文件(js/css/font/图片)缓存24小时, 入口文件缓存5分钟
+    if any(request.path.startswith(p) for p in ['/vue/assets/', '/assets/', '/dist/assets/']):
+        if any(request.path.endswith(ext) for ext in ['.js','.css','.woff','.woff2','.ttf','.png','.jpg','.svg','.ico']):
+            response.headers["Cache-Control"] = "public, max-age=86400"
+        else:
+            response.headers["Cache-Control"] = "public, max-age=300"
+    # API 响应不缓存
+    elif request.path.startswith('/vue/') or request.path.startswith('/files/') or \
+         request.path.startswith('/site/') or request.path.startswith('/system/') or \
+         request.path.startswith('/setting/') or request.path.startswith('/users/') or \
+         request.path.startswith('/docker/') or request.path.startswith('/database/') or \
+         request.path.startswith('/backup/') or request.path.startswith('/security/') or \
+         request.path.startswith('/terminal/') or request.path.startswith('/crontab/'):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
 
     return response
 
@@ -246,7 +287,7 @@ def inject_global_variables():
         app_ver = app_ver + str(time.time())
 
     data = utils_config.getGlobalVar()
-    g_config = {"version": app_ver, "title": "MW面板", "ip": "127.0.0.1"}
+    g_config = {"version": app_ver, "title": "Compass 指南面板", "ip": "127.0.0.1"}
     return dict(config=g_config, data=data)
 
 

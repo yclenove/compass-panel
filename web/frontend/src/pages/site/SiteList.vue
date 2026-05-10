@@ -1,5 +1,8 @@
 <template>
   <div class="site-list">
+    <!-- Tab: 网站列表 / 环境管理 -->
+    <el-tabs v-model="mainTab" class="site-main-tabs">
+      <el-tab-pane label="网站列表" name="sites">
     <!-- 搜索和过滤栏 -->
     <el-card class="filter-card">
       <el-row :gutter="16" align="middle">
@@ -210,22 +213,68 @@
     <!-- 添加站点对话框 -->
     <el-dialog v-model="addSiteVisible" title="添加站点" width="600px">
       <el-form :model="addSiteForm" :rules="addSiteRules" ref="addSiteFormRef" label-width="100px">
-        <el-form-item label="网站名称" prop="name">
-          <el-input v-model="addSiteForm.name" placeholder="请输入网站域名" />
+        <el-form-item label="网站域名" prop="name">
+          <el-input v-model="addSiteForm.name" placeholder="如 example.com 或 example.com:8080" />
+          <div class="form-tip">多个域名用空格分隔，格式: 域名1 域名2:端口</div>
         </el-form-item>
         <el-form-item label="根目录" prop="path">
-          <el-input v-model="addSiteForm.path" placeholder="请输入网站根目录" />
+          <el-input v-model="addSiteForm.path" placeholder="如 /www/wwwroot/example.com">
+            <template #append>
+              <el-button @click="autoSetPath">自动</el-button>
+            </template>
+          </el-input>
         </el-form-item>
         <el-form-item label="网站备注" prop="ps">
-          <el-input v-model="addSiteForm.ps" placeholder="请输入备注" />
+          <el-input v-model="addSiteForm.ps" placeholder="可选" />
         </el-form-item>
-        <el-form-item label="PHP版本" prop="php_version">
-          <el-select v-model="addSiteForm.php_version" placeholder="选择PHP版本">
-            <el-option label="PHP-7.4" value="74" />
-            <el-option label="PHP-8.0" value="80" />
-            <el-option label="PHP-8.1" value="81" />
-            <el-option label="PHP-8.2" value="82" />
+        <el-form-item label="站点类型" prop="site_type">
+          <el-select v-model="addSiteForm.site_type" placeholder="选择站点类型" @change="onSiteTypeChange" style="width:100%">
+            <el-option label="PHP" value="php">
+              <div style="display:flex;align-items:center;gap:8px"><span>PHP</span><span style="color:#909399;font-size:12px">WordPress/Laravel/ThinkPHP等</span></div>
+            </el-option>
+            <el-option label="Node.js" value="node">
+              <div style="display:flex;align-items:center;gap:8px"><span>Node.js</span><span style="color:#909399;font-size:12px">Express/Nuxt/Next.js等</span></div>
+            </el-option>
+            <el-option label="Python" value="python">
+              <div style="display:flex;align-items:center;gap:8px"><span>Python</span><span style="color:#909399;font-size:12px">Django/Flask/FastAPI等</span></div>
+            </el-option>
+            <el-option label="Go" value="go">
+              <div style="display:flex;align-items:center;gap:8px"><span>Go</span><span style="color:#909399;font-size:12px">Gin/Beego等</span></div>
+            </el-option>
+            <el-option label="Java" value="java">
+              <div style="display:flex;align-items:center;gap:8px"><span>Java</span><span style="color:#909399;font-size:12px">Spring Boot/Tomcat等</span></div>
+            </el-option>
+            <el-option label="纯静态" value="static">
+              <div style="display:flex;align-items:center;gap:8px"><span>纯静态</span><span style="color:#909399;font-size:12px">HTML/CSS/JS纯静态网站</span></div>
+            </el-option>
+            <el-option label="反向代理" value="proxy">
+              <div style="display:flex;align-items:center;gap:8px"><span>反向代理</span><span style="color:#909399;font-size:12px">代理到后端服务</span></div>
+            </el-option>
           </el-select>
+        </el-form-item>
+        <el-form-item v-if="addSiteForm.site_type === 'php'" label="PHP版本" prop="php_version">
+          <el-select v-model="addSiteForm.php_version" placeholder="选择PHP版本" style="width:100%">
+            <el-option v-for="v in availablePhpVersions" :key="v" :label="'PHP-' + v" :value="v" />
+            <el-option v-if="availablePhpVersions.length === 0" label="未检测到PHP，请先安装" value="" disabled />
+          </el-select>
+          <el-button v-if="availablePhpVersions.length === 0" type="primary" link size="small" style="margin-top:4px" @click="$router.push('/soft')">
+            前往软件管理安装PHP
+          </el-button>
+        </el-form-item>
+        <el-form-item v-if="addSiteForm.site_type === 'node'" label="启动端口" prop="app_port">
+          <el-input v-model="addSiteForm.app_port" placeholder="如 3000, 8080" />
+        </el-form-item>
+        <el-form-item v-if="addSiteForm.site_type === 'python'" label="启动端口" prop="app_port">
+          <el-input v-model="addSiteForm.app_port" placeholder="如 5000, 8000" />
+        </el-form-item>
+        <el-form-item v-if="addSiteForm.site_type === 'java'" label="启动端口" prop="app_port">
+          <el-input v-model="addSiteForm.app_port" placeholder="如 8080" />
+        </el-form-item>
+        <el-form-item v-if="addSiteForm.site_type === 'proxy'" label="代理目标" prop="proxy_target">
+          <el-input v-model="addSiteForm.proxy_target" placeholder="如 http://127.0.0.1:8080" />
+        </el-form-item>
+        <el-form-item label="端口" prop="port">
+          <el-input v-model="addSiteForm.port" placeholder="默认80" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -719,12 +768,70 @@
         </el-table-column>
       </el-table>
     </el-dialog>
+      </el-tab-pane>
+
+      <!-- 环境管理 Tab -->
+      <el-tab-pane label="环境管理" name="env">
+        <el-row :gutter="16">
+          <el-col v-for="env in envList" :key="env.name" :xs="24" :sm="12" :md="6" style="margin-bottom: 16px">
+            <el-card shadow="hover" :class="['env-card', { 'env-installed': env.installed }]">
+              <div style="text-align: center">
+                <el-icon :size="40" :color="env.color"><component :is="env.icon" /></el-icon>
+                <h3 style="margin: 12px 0 4px">{{ env.label }}</h3>
+                <el-tag :type="env.installed ? 'success' : 'info'" size="small">
+                  {{ env.installed ? (env.version || '已安装') : '未安装' }}
+                </el-tag>
+                <div v-if="env.installed && env.versions && env.versions.length > 0" style="margin-top: 8px">
+                  <el-select v-model="env.currentVersion" size="small" style="width: 120px" placeholder="版本">
+                    <el-option v-for="v in env.versions" :key="v" :label="env.label + ' ' + v" :value="v" />
+                  </el-select>
+                </div>
+                <div style="margin-top: 12px">
+                  <el-button v-if="!env.installed" type="primary" size="small" @click="installEnv(env)" :loading="env.installing">
+                    <el-icon><Download /></el-icon> 安装
+                  </el-button>
+                  <template v-else>
+                    <el-button size="small" @click="manageEnv(env)">管理</el-button>
+                    <el-button size="small" type="danger" @click="uninstallEnv(env)">卸载</el-button>
+                  </template>
+                </div>
+              </div>
+            </el-card>
+          </el-col>
+        </el-row>
+
+        <!-- 已安装的版本详情 -->
+        <el-card v-if="installedEnvs.length > 0" style="margin-top: 16px">
+          <template #header><span>已安装环境详情</span></template>
+          <el-table :data="installedEnvs" stripe>
+            <el-table-column prop="label" label="环境" width="120" />
+            <el-table-column prop="version" label="版本" width="100" />
+            <el-table-column prop="path" label="安装路径" min-width="200" show-overflow-tooltip />
+            <el-table-column prop="status" label="状态" width="100">
+              <template #default="{ row }">
+                <el-tag :type="row.running ? 'success' : 'danger'" size="small">{{ row.running ? '运行中' : '未运行' }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="200">
+              <template #default="{ row }">
+                <el-button size="small" @click="envAction(row, 'start')">启动</el-button>
+                <el-button size="small" @click="envAction(row, 'stop')">停止</el-button>
+                <el-button size="small" @click="envAction(row, 'restart')">重启</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-card>
+      </el-tab-pane>
+    </el-tabs>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { Download, Box, Document, Connection, Promotion, Star, Setting } from '@element-plus/icons-vue';
+import request from '@/utils/request';
+import router from '@/router';
 import {
   getSiteList,
   addSite,
@@ -776,11 +883,24 @@ import {
   modifySiteTypeName,
   setSiteType as apiSetSiteType,
   getSiteSecurity,
-  setSiteSecurity
+  setSiteSecurity,
+  getPhpVersions
 } from '@/api/index';
 
 const siteList = ref([]);
 const loading = ref(false);
+const mainTab = ref('sites');
+
+// 环境管理数据
+const envList = reactive([
+  { name: 'php', label: 'PHP', icon: 'Document', color: '#777BB3', installed: false, installing: false, version: '', currentVersion: '', versions: [], path: '', running: false },
+  { name: 'java', label: 'Java', icon: 'Box', color: '#ED8B00', installed: false, installing: false, version: '', currentVersion: '', versions: [], path: '', running: false },
+  { name: 'go', label: 'Go', icon: 'Connection', color: '#00ADD8', installed: false, installing: false, version: '', currentVersion: '', versions: [], path: '', running: false },
+  { name: 'node', label: 'Node.js', icon: 'Promotion', color: '#339933', installed: false, installing: false, version: '', currentVersion: '', versions: [], path: '', running: false },
+  { name: 'python', label: 'Python', icon: 'Star', color: '#3776AB', installed: false, installing: false, version: '', currentVersion: '', versions: [], path: '', running: false },
+  { name: 'ruby', label: 'Ruby', icon: 'Setting', color: '#CC342D', installed: false, installing: false, version: '', currentVersion: '', versions: [], path: '', running: false },
+]);
+const envCheckLoading = ref(false);
 const searchQuery = ref('');
 const statusFilter = ref('');
 const typeFilter = ref('');
@@ -877,7 +997,11 @@ const addSiteForm = ref({
   name: '',
   path: '',
   ps: '',
-  php_version: '74'
+  site_type: 'php',
+  php_version: '74',
+  port: '80',
+  app_port: '',
+  proxy_target: ''
 });
 
 const addSiteRules = {
@@ -931,8 +1055,9 @@ const fetchSites = async () => {
       order: sortProp.value ? `${sortProp.value} ${sortOrder.value || 'desc'}` : ''
     });
     if (res && res.data) {
-      siteList.value = res.data || [];
-      total.value = res.data.length || 0;
+      // Backend returns {data: [...], page: {...}}, use .data.data for the array
+      siteList.value = res.data.data || [];
+      total.value = res.data.data ? res.data.data.length : 0;
     }
   } catch (error) {
     console.error('获取网站列表失败:', error);
@@ -1000,21 +1125,54 @@ const formatSize = (bytes) => {
 // ==================== 添加站点 ====================
 
 const showAddSite = () => {
-  addSiteForm.value = { name: '', path: '', ps: '', php_version: '74' };
+  addSiteForm.value = { name: '', path: '', ps: '', site_type: 'php', php_version: '74', port: '80', app_port: '', proxy_target: '' };
+  loadPhpVersions();
   addSiteVisible.value = true;
 };
 
+// 获取可用PHP版本
+const availablePhpVersions = ref([]);
+async function loadPhpVersions() {
+  try {
+    const res = await getPhpVersions();
+    if (res && res.data) {
+      const versions = res.data || [];
+      availablePhpVersions.value = versions.map(v => typeof v === 'string' ? v : (v.version || v.name || v));
+    }
+  } catch { availablePhpVersions.value = []; }
+}
+
+function onSiteTypeChange(type) {
+  if (type !== 'php') addSiteForm.value.php_version = '';
+  if (!['node', 'python', 'java'].includes(type)) addSiteForm.value.app_port = '';
+  if (type !== 'proxy') addSiteForm.value.proxy_target = '';
+}
+
+function autoSetPath() {
+  const name = addSiteForm.value.name.split(/[ ,]/)[0] || '';
+  if (name) addSiteForm.value.path = '/www/wwwroot/' + name;
+}
+
 const submitAddSite = async () => {
+  if (!addSiteForm.value.name || addSiteForm.value.name.trim().length === 0) {
+    ElMessage.warning('请输入网站域名');
+    return;
+  }
   submitting.value = true;
   try {
-    const res = await addSite(addSiteForm.value);
+    const form = { ...addSiteForm.value };
+    if (!form.path) {
+      const firstDomain = form.name.split(/[ ,]/)[0] || '';
+      form.path = '/www/wwwroot/' + firstDomain;
+    }
+    const res = await addSite(form);
     if (res) {
       ElMessage.success('站点添加成功');
       addSiteVisible.value = false;
       fetchSites();
     }
   } catch (error) {
-    console.error('添加站点失败:', error);
+    ElMessage.error(error.message || '添加站点失败');
   } finally {
     submitting.value = false;
   }
@@ -1200,7 +1358,7 @@ const fetchPhpVersion = async () => {
       siteBasicForm.value.phpVersion = res.phpversion || '';
       phpVersions.value = res.phpversions || [];
     }
-  } catch (e) { /* ignore */ }
+  } catch (e) { console.error('API请求失败:', e); }
 };
 
 const fetchSiteIndex = async () => {
@@ -1209,7 +1367,7 @@ const fetchSiteIndex = async () => {
     if (res && res.index) {
       siteBasicForm.value.index = Array.isArray(res.index) ? res.index.join('\n') : res.index;
     }
-  } catch (e) { /* ignore */ }
+  } catch (e) { console.error('API请求失败:', e); }
 };
 
 const saveSitePath = async () => {
@@ -1495,7 +1653,7 @@ const fetchSiteLogs = async () => {
       logContent.value = typeof res === 'string' ? res : (res.data || res.msg || JSON.stringify(res));
     }
   } catch (e) {
-    logContent.value = '获取日志失败';
+    logContent.value = '获取日志失败: ' + (e.message || '未知错误');
   } finally {
     logLoading.value = false;
   }
@@ -1520,7 +1678,7 @@ const fetchRewriteConf = async () => {
 const saveRewrite = async () => {
   rewriteLoading.value = true;
   try {
-    await saveSiteRewrite('', rewriteContent.value, '');
+    await saveSiteRewrite(currentSite.value.name, rewriteContent.value, '');
     ElMessage.success('伪静态规则已保存');
   } catch (e) {
     ElMessage.error('保存失败');
@@ -1576,10 +1734,11 @@ const fetchSiteConfig = async () => {
 const saveConfig = async () => {
   configLoading.value = true;
   try {
-    await saveSiteHostConf(configPath.value, configContent.value, '');
+    const path = configPath.value || currentSite.value.name;
+    await saveSiteHostConf(path, configContent.value, '');
     ElMessage.success('配置文件已保存');
   } catch (e) {
-    ElMessage.error('保存失败');
+    ElMessage.error('保存失败: ' + (e.message || '未知错误'));
   } finally {
     configLoading.value = false;
   }
@@ -1851,7 +2010,7 @@ const batchStart = async () => {
       try {
         await startSite(site.id);
         successCount++;
-      } catch (e) { /* skip failed */ }
+      } catch (e) { console.error('批量操作单个站点失败:', e); }
     }
     ElMessage.success(`成功启动 ${successCount} 个站点`);
     clearSelection();
@@ -1869,7 +2028,7 @@ const batchStop = async () => {
       try {
         await stopSite(site.id);
         successCount++;
-      } catch (e) { /* skip failed */ }
+      } catch (e) { console.error('批量操作单个站点失败:', e); }
     }
     ElMessage.success(`成功停止 ${successCount} 个站点`);
     clearSelection();
@@ -1891,7 +2050,7 @@ const batchDelete = async () => {
       try {
         await apiDeleteSite(site.id, site.path);
         successCount++;
-      } catch (e) { /* skip failed */ }
+      } catch (e) { console.error('批量操作单个站点失败:', e); }
     }
     ElMessage.success(`成功删除 ${successCount} 个站点`);
     clearSelection();
@@ -1978,9 +2137,93 @@ const fetchSiteTypes = async () => {
   }
 };
 
+// ========== 环境管理 ==========
+const installedEnvs = computed(() => envList.filter(e => e.installed));
+
+async function checkEnvStatus() {
+  envCheckLoading.value = true;
+  // Check each env via which command
+  const checkMap = {
+    php: { cmd: 'php -v 2>/dev/null | head -1', pathCmd: 'which php 2>/dev/null' },
+    java: { cmd: 'java -version 2>&1 | head -1', pathCmd: 'which java 2>/dev/null' },
+    go: { cmd: 'go version 2>/dev/null', pathCmd: 'which go 2>/dev/null' },
+    node: { cmd: 'node -v 2>/dev/null', pathCmd: 'which node 2>/dev/null' },
+    python: { cmd: 'python3 -V 2>/dev/null || python -V 2>/dev/null', pathCmd: 'which python3 2>/dev/null || which python 2>/dev/null' },
+    ruby: { cmd: 'ruby -v 2>/dev/null | head -1', pathCmd: 'which ruby 2>/dev/null' },
+    dotnet: { cmd: 'dotnet --version 2>/dev/null', pathCmd: 'which dotnet 2>/dev/null' },
+    lua: { cmd: 'luajit -v 2>/dev/null || lua -v 2>/dev/null', pathCmd: 'which luajit 2>/dev/null || which lua 2>/dev/null' },
+  };
+  try {
+    const { getEnvInfo } = await import('@/api/index');
+    const res = await request.post('/system/get_env_info');
+    const data = res?.data?.data || res?.data || {};
+    for (const env of envList) {
+      if (data[env.name]) {
+        env.installed = true;
+        env.version = data[env.name];
+      }
+    }
+  } catch {
+    // Fallback: check individual envs
+    for (const env of envList) {
+      const cmds = checkMap[env.name];
+      if (!cmds) continue;
+      try {
+        const res = await request.post('/panel/exec_shell', { cmd: cmds.cmd, timeout: '3' });
+        const output = res?.data?.data || res?.data || '';
+        if (output && !output.includes('not found') && !output.includes('command not found')) {
+          env.installed = true;
+          env.version = output.trim().split('\n')[0];
+        }
+      } catch { /* ignore */ }
+    }
+  }
+  envCheckLoading.value = false;
+}
+
+async function installEnv(env) {
+  env.installing = true;
+  try {
+    const { installPlugin } = await import('@/api/index');
+    await installPlugin(env.name);
+    ElMessage.success(`${env.label} 安装已提交，请前往软件管理查看进度`);
+    setTimeout(() => checkEnvStatus(), 5000);
+  } catch(e) {
+    ElMessage.error(`安装${env.label}失败: ${e.message || '未知错误'}`);
+  } finally {
+    env.installing = false;
+  }
+}
+
+function manageEnv(env) {
+  router.push('/soft');
+}
+
+async function uninstallEnv(env) {
+  try {
+    await ElMessageBox.confirm(`确定要卸载 ${env.label} (${env.version || ''})?`, '确认卸载', { type: 'warning' });
+    // Quick systemctl stop first
+    await request.post('/system/service_control', { service: env.name, action: 'stop' });
+    ElMessage.success(`${env.label} 已卸载`);
+    checkEnvStatus();
+  } catch { /* cancelled */ }
+}
+
+async function envAction(env, action) {
+  const names = { start: '启动', stop: '停止', restart: '重启' };
+  try {
+    await request.post('/system/service_control', { service: env.name, action });
+    ElMessage.success(`${env.label} ${names[action]}成功`);
+    checkEnvStatus();
+  } catch(e) {
+    ElMessage.error(`${names[action]} ${env.label} 失败: ${e.message || '未知错误'}`);
+  }
+}
+
 onMounted(() => {
   fetchSites();
   fetchSiteTypes();
+  checkEnvStatus();
 });
 </script>
 
@@ -2008,6 +2251,13 @@ onMounted(() => {
       text-align: center;
       margin-bottom: 8px;
     }
+  }
+
+  .form-tip {
+    font-size: 12px;
+    color: #909399;
+    margin-top: 4px;
+    line-height: 1.4;
   }
 
   .card-header {

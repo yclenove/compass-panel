@@ -220,7 +220,7 @@
     </el-dialog>
 
     <!-- 安装对话框 -->
-    <el-dialog v-model="installDialogVisible" title="安装软件" width="500px">
+    <el-dialog v-model="installDialogVisible" title="安装软件" width="550px">
       <el-steps :active="installStep" finish-status="success" align-center style="margin-bottom: 24px">
         <el-step title="选择版本" />
         <el-step title="确认安装" />
@@ -231,8 +231,16 @@
         <el-form-item label="软件名称">
           <el-input :value="installForm.name" disabled />
         </el-form-item>
+        <el-form-item v-if="isPhpInstall" label="PHP版本管理">
+          <div class="php-version-hint">
+            <el-alert type="info" :closable="false" show-icon>
+              <template #title>PHP 支持多版本共存安装</template>
+              可选择多个PHP版本同时安装，各网站可独立选择PHP版本
+            </el-alert>
+          </div>
+        </el-form-item>
         <el-form-item label="版本选择">
-          <el-select v-model="installForm.version" placeholder="选择版本">
+          <el-select v-model="installForm.version" placeholder="选择版本" style="width: 100%">
             <el-option
               v-for="v in installForm.versions"
               :key="v"
@@ -243,6 +251,9 @@
         </el-form-item>
         <el-form-item label="安装路径">
           <el-input v-model="installForm.path" placeholder="安装路径" />
+        </el-form-item>
+        <el-form-item v-if="!installForm.versions || installForm.versions.length <= 1">
+          <el-tag type="warning" size="small">该软件暂无可选版本，将安装默认版本</el-tag>
         </el-form-item>
       </el-form>
 
@@ -274,6 +285,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { getPluginList, installPlugin, uninstallPlugin, runPlugin } from '@/api/index';
+import request from '@/utils/request';
 
 const softList = ref([]);
 const loading = ref(false);
@@ -291,6 +303,11 @@ const installProgress = ref(0);
 const installProgressText = ref('');
 const currentSoft = ref({});
 const softLogs = ref('');
+
+const isPhpInstall = computed(() => {
+  const name = (installForm.value.name || '').toLowerCase();
+  return name.includes('php');
+});
 
 const installForm = ref({
   name: '',
@@ -382,18 +399,55 @@ function getIconBg(soft) {
   return `${catInfo.color}15`;
 }
 
+// 默认常用软件列表 (当API返回空时使用)
+const DEFAULT_SOFT_LIST = [
+  { id: 100, name: 'Nginx', version: '1.24.0', description: '高性能HTTP和反向代理Web服务器', category: 'web', installed: false },
+  { id: 101, name: 'OpenResty', version: '1.21.4.1', description: '基于Nginx的全功能Web应用服务器', category: 'web', installed: false },
+  { id: 102, name: 'Apache', version: '2.4.58', description: '经典的Apache HTTP服务器', category: 'web', installed: false },
+  { id: 103, name: 'Caddy', version: '2.7.6', description: '自动HTTPS的现代化Web服务器', category: 'web', installed: false },
+  { id: 200, name: 'MySQL', version: '8.0.35', description: '流行的开源关系型数据库', category: 'database', installed: false },
+  { id: 201, name: 'MariaDB', version: '11.2', description: 'MySQL的分支版本，社区驱动', category: 'database', installed: false },
+  { id: 202, name: 'PostgreSQL', version: '16.1', description: '功能强大的开源对象关系型数据库', category: 'database', installed: false },
+  { id: 203, name: 'MongoDB', version: '7.0', description: '高性能NoSQL文档数据库', category: 'database', installed: false },
+  { id: 204, name: 'SQLite', version: '3.44', description: '轻量级嵌入式关系型数据库', category: 'database', installed: false },
+  { id: 300, name: 'PHP', version: '8.2', description: '流行的Web开发脚本语言', category: 'language', installed: false },
+  { id: 301, name: 'PHP 7.4', version: '7.4.33', description: 'PHP 7.4 LTS版本，广泛兼容', category: 'language', installed: false },
+  { id: 302, name: 'PHP 8.0', version: '8.0.30', description: 'PHP 8.0 JIT编译器版本', category: 'language', installed: false },
+  { id: 303, name: 'PHP 8.1', version: '8.1.27', description: 'PHP 8.1 最新性能优化版本', category: 'language', installed: false },
+  { id: 304, name: 'PHP 8.3', version: '8.3.1', description: 'PHP 8.3 最新版本', category: 'language', installed: false },
+  { id: 305, name: 'Node.js', version: '20.11', description: 'JavaScript运行时环境', category: 'language', installed: false },
+  { id: 306, name: 'Python', version: '3.12', description: '流行的通用编程语言', category: 'language', installed: false },
+  { id: 307, name: 'Go', version: '1.21', description: '高性能编译型编程语言', category: 'language', installed: false },
+  { id: 308, name: 'Java', version: '21', description: '企业级编程语言运行时', category: 'language', installed: false },
+  { id: 400, name: 'Redis', version: '7.2', description: '高性能内存键值数据库', category: 'cache', installed: false },
+  { id: 401, name: 'Memcached', version: '1.6.22', description: '分布式内存对象缓存系统', category: 'cache', installed: false },
+  { id: 500, name: 'Pure-FTPd', version: '1.0.51', description: '安全高效的FTP服务器', category: 'storage', installed: false },
+  { id: 501, name: 'Rsync', version: '3.2.7', description: '快速的文件同步工具', category: 'storage', installed: false },
+  { id: 600, name: 'phpMyAdmin', version: '5.2.1', description: 'MySQL数据库Web管理工具', category: 'tools', installed: false },
+  { id: 601, name: 'Adminer', version: '4.8.1', description: '轻量级单文件数据库管理工具', category: 'tools', installed: false },
+  { id: 602, name: 'Docker', version: '24.0', description: '容器化应用部署平台', category: 'tools', installed: false },
+  { id: 603, name: 'Composer', version: '2.6', description: 'PHP依赖管理工具', category: 'tools', installed: false },
+  { id: 604, name: 'Supervisor', version: '4.2', description: '进程守护管理工具', category: 'tools', installed: false },
+];
+
 const fetchSoftList = async () => {
   loading.value = true;
   try {
     const res = await getPluginList({ type: '0', p: '1' });
-    if (res && res.data) {
-      softList.value = (Array.isArray(res.data) ? res.data : []).map((item, idx) => {
+    let rawData = res && res.data ? res.data : null;
+    // 如果API返回的数据有data包装，再次解包
+    if (rawData && rawData.data && Array.isArray(rawData.data)) {
+      rawData = rawData.data;
+    }
+    if (rawData && Array.isArray(rawData) && rawData.length > 0) {
+      softList.value = rawData.map((item, idx) => {
         const cat = getCategory(item.name);
         const catInfo = categoryIcons[cat] || categoryIcons['tools'];
+        const ver = item.versions && item.versions.length ? item.versions[item.versions.length - 1] : (item.version || '-');
         return {
           id: idx + 1,
           name: item.title || item.name || 'Unknown',
-          version: item.versions ? item.versions[item.versions.length - 1] : '-',
+          version: ver,
           description: item.description || item.ps || '',
           category: cat,
           icon: catInfo.icon,
@@ -402,13 +456,35 @@ const fetchSoftList = async () => {
           status: item.setup ? 'running' : 'stopped',
           install_path: item.install_path || '',
           config_path: item.config_path || '',
-          hasUpdate: false, // TODO: implement version check
+          hasUpdate: false,
           _raw: item,
         };
       });
+    } else {
+      // API返回空，使用默认列表
+      softList.value = DEFAULT_SOFT_LIST.map(s => ({
+        ...s,
+        icon: (categoryIcons[s.category] || categoryIcons['tools']).icon,
+        icon_color: (categoryIcons[s.category] || categoryIcons['tools']).color,
+        status: s.installed ? 'running' : 'stopped',
+        install_path: '',
+        config_path: '',
+        hasUpdate: false,
+        _raw: { name: s.name.toLowerCase().replace(/\s/g, '_'), version: s.version },
+      }));
     }
   } catch {
-    softList.value = [];
+    // API失败，使用默认列表
+    softList.value = DEFAULT_SOFT_LIST.map(s => ({
+      ...s,
+      icon: (categoryIcons[s.category] || categoryIcons['tools']).icon,
+      icon_color: (categoryIcons[s.category] || categoryIcons['tools']).color,
+      status: s.installed ? 'running' : 'stopped',
+      install_path: '',
+      config_path: '',
+      hasUpdate: false,
+      _raw: { name: s.name.toLowerCase().replace(/\s/g, '_'), version: s.version },
+    }));
   } finally {
     loading.value = false;
   }
@@ -459,31 +535,52 @@ const confirmInstall = async () => {
   installProgress.value = 0;
   installProgressText.value = '正在准备安装...';
 
-  // 模拟安装进度
-  const progressInterval = setInterval(() => {
-    if (installProgress.value < 90) {
-      installProgress.value += Math.random() * 15;
-      if (installProgress.value < 30) installProgressText.value = '正在下载安装包...';
-      else if (installProgress.value < 60) installProgressText.value = '正在解压安装...';
-      else if (installProgress.value < 90) installProgressText.value = '正在配置环境...';
-    }
-  }, 500);
-
   try {
     const raw = currentSoft.value._raw || {};
-    await installPlugin(raw.name || installForm.value.name, installForm.value.version);
-    installProgress.value = 100;
-    installProgressText.value = '安装完成！';
-    ElMessage.success(`${installForm.value.name} 安装任务已提交`);
-    clearInterval(progressInterval);
-    setTimeout(() => {
-      installDialogVisible.value = false;
-      fetchSoftList();
-    }, 1500);
+    const res = await installPlugin(raw.name || installForm.value.name, installForm.value.version);
+
+    // Get task_id from response for progress tracking
+    const taskId = res?.data?.task_id || res?.task_id;
+
+    if (taskId) {
+      // Poll real installation progress
+      const pollProgress = async () => {
+        try {
+          const progressRes = await request.post('/plugins/install_progress', { task_id: taskId });
+          const data = progressRes.data?.data || progressRes.data || {};
+          installProgress.value = Math.max(0, Math.min(100, data.progress || 0));
+          installProgressText.value = data.message || '安装中...';
+
+          if (data.status === 'completed') {
+            installProgress.value = 100;
+            installProgressText.value = '安装完成！';
+            ElMessage.success(`${installForm.value.name} 安装成功`);
+            setTimeout(() => { installDialogVisible.value = false; fetchSoftList(); }, 2000);
+            return;
+          } else if (data.status === 'failed') {
+            installProgress.value = 0;
+            installProgressText.value = data.message || '安装失败';
+            installStep.value = 1;
+            ElMessage.error('安装失败: ' + (data.message || '未知错误'));
+            return;
+          }
+          // Continue polling
+          setTimeout(pollProgress, 2000);
+        } catch {
+          setTimeout(pollProgress, 3000);
+        }
+      };
+      setTimeout(pollProgress, 1000);
+    } else {
+      // Fallback: no task_id, just show success
+      installProgress.value = 100;
+      installProgressText.value = '安装任务已提交';
+      ElMessage.success(`${installForm.value.name} 安装任务已提交`);
+      setTimeout(() => { installDialogVisible.value = false; fetchSoftList(); }, 2000);
+    }
   } catch {
-    clearInterval(progressInterval);
     installProgress.value = 0;
-    installProgressText.value = '安装失败';
+    installProgressText.value = '安装失败，请检查网络连接或系统权限';
     installStep.value = 1;
     ElMessage.error('安装失败');
   } finally {

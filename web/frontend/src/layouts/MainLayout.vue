@@ -15,11 +15,12 @@
     >
       <div class="sidebar-header">
         <el-icon class="logo-icon"><Monitor /></el-icon>
-        <span v-show="!appStore.sidebarCollapsed" class="logo-text">mdserver-web</span>
+        <span v-show="!appStore.sidebarCollapsed" class="logo-text">Compass</span>
       </div>
 
       <el-menu
         :default-active="currentRoute"
+        :default-openeds="defaultOpeneds"
         :collapse="appStore.sidebarCollapsed"
         background-color="#304156"
         text-color="#bfcbd9"
@@ -28,12 +29,69 @@
         router
         @select="handleMenuSelect"
       >
-        <template v-for="route in menuRoutes" :key="route.path">
-          <el-menu-item :index="'/' + route.path">
-            <el-icon><component :is="route.meta.icon" /></el-icon>
-            <template #title>{{ route.meta.title }}</template>
-          </el-menu-item>
-        </template>
+        <!-- 仪表盘 -->
+        <el-menu-item index="/dashboard">
+          <el-icon><Odometer /></el-icon>
+          <template #title>仪表盘</template>
+        </el-menu-item>
+
+        <!-- 网站与应用 -->
+        <el-sub-menu index="group-web">
+          <template #title>
+            <el-icon><ChromeFilled /></el-icon>
+            <span>网站与应用</span>
+          </template>
+          <el-menu-item index="/site">网站管理</el-menu-item>
+          <el-menu-item index="/database">数据库</el-menu-item>
+          <el-menu-item index="/ssl">SSL证书</el-menu-item>
+        </el-sub-menu>
+
+        <!-- 服务器管理 -->
+        <el-sub-menu index="group-server">
+          <template #title>
+            <el-icon><Monitor /></el-icon>
+            <span>服务器管理</span>
+          </template>
+          <el-menu-item index="/files">文件管理</el-menu-item>
+          <el-menu-item index="/terminal">终端</el-menu-item>
+          <el-menu-item index="/monitor">系统监控</el-menu-item>
+          <el-menu-item index="/webserver">Web服务器</el-menu-item>
+        </el-sub-menu>
+
+        <!-- 运维工具 -->
+        <el-sub-menu index="group-ops">
+          <template #title>
+            <el-icon><Box /></el-icon>
+            <span>运维工具</span>
+          </template>
+          <el-menu-item index="/soft">软件管理</el-menu-item>
+          <el-menu-item index="/docker">Docker</el-menu-item>
+          <el-menu-item index="/crontab">计划任务</el-menu-item>
+          <el-menu-item index="/backup">备份管理</el-menu-item>
+        </el-sub-menu>
+
+        <!-- 安全 -->
+        <el-sub-menu index="group-security">
+          <template #title>
+            <el-icon><Lock /></el-icon>
+            <span>安全中心</span>
+          </template>
+          <el-menu-item index="/security">安全加固</el-menu-item>
+          <el-menu-item index="/firewall">防火墙</el-menu-item>
+        </el-sub-menu>
+
+        <!-- 系统管理 -->
+        <el-sub-menu index="group-system">
+          <template #title>
+            <el-icon><Setting /></el-icon>
+            <span>系统管理</span>
+          </template>
+          <el-menu-item index="/logs">操作日志</el-menu-item>
+          <el-menu-item index="/users">用户管理</el-menu-item>
+          <el-menu-item index="/plugins">插件管理</el-menu-item>
+          <el-menu-item index="/migration">面板迁移</el-menu-item>
+          <el-menu-item index="/setting">面板设置</el-menu-item>
+        </el-sub-menu>
       </el-menu>
     </el-aside>
 
@@ -105,6 +163,10 @@ import { computed, ref, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAppStore } from '@/stores/app';
 import { useUserStore } from '@/stores/user';
+import {
+  Odometer, ChromeFilled, Monitor, Box, Lock, Setting, Warning,
+  Fold, Expand, Refresh, FullScreen, ArrowDown, SwitchButton
+} from '@element-plus/icons-vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -143,6 +205,20 @@ const currentRoute = computed(() => {
   // 处理子路由，如 /files/edit -> /files
   const segments = path.split('/').filter(Boolean);
   return segments.length > 1 ? `/${segments[0]}` : path;
+});
+
+// 默认展开的子菜单 - 根据当前路由自动展开对应分组
+const defaultOpeneds = computed(() => {
+  const path = currentRoute.value;
+  const groupMap = {
+    '/site': 'group-web', '/database': 'group-web', '/ssl': 'group-web',
+    '/files': 'group-server', '/terminal': 'group-server', '/monitor': 'group-server', '/webserver': 'group-server',
+    '/soft': 'group-ops', '/docker': 'group-ops', '/crontab': 'group-ops', '/backup': 'group-ops',
+    '/security': 'group-security', '/firewall': 'group-security',
+    '/logs': 'group-system', '/users': 'group-system', '/plugins': 'group-system', '/migration': 'group-system', '/setting': 'group-system',
+  };
+  const group = groupMap[path];
+  return group ? [group] : [];
 });
 
 const currentMeta = computed(() => route.meta || {});

@@ -68,6 +68,16 @@ service.interceptors.response.use(
       return Promise.reject(new Error('未授权'));
     }
 
+    // 自动解包 msg 字段：后端返回 {msg: ..., status: true}
+    // 将 msg 内容提升到顶层，使页面可以直接访问 res.data.xxx
+    if (res.status !== undefined && res.msg !== undefined && res.data === undefined) {
+      const msg = res.msg;
+      if (msg && typeof msg === 'object' && !Array.isArray(msg)) {
+        res.data = msg;
+      } else if (typeof msg === 'string') {
+        res.data = msg;
+      }
+    }
     return res;
   },
 
